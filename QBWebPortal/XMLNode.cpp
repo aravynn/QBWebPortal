@@ -11,6 +11,12 @@ DataType XMLNode::inferDataType(const std::string& data)
         return DataType::STRING;
     }
 
+    // check for a null string, and return an appropriate value for that. 
+    if (data == "") {
+        m_stringVal = "*NULL*"; // special value will be tested and set as <name /> in XML at write time.
+        return DataType::STRING;
+    }
+
     // check if type is either an integer or a decimal, and return the type.
     char* ptr = nullptr;
 
@@ -52,7 +58,6 @@ DataType XMLNode::inferDataType(const std::string& data)
 XMLNode::XMLNode(const std::string& name, const std::string& data) : m_name{ name }, m_isActive{ true }
 {
     m_nodeType = inferDataType(data);
-   // std::cout << m_name << " RAW: " << data << ' ' << m_stringVal << ' ' << m_decVal << ' ' << m_intVal << '\n';
 }
 
 XMLNode::XMLNode(const std::string& name) : m_name{ name }, m_nodeType{ DataType::PARENT_NODE }, m_isActive{ true }
@@ -100,6 +105,23 @@ int XMLNode::addNode(const std::string& name, std::list<int> location)
         int x = location.front(); // get the top value
         location.pop_front(); // remove the top element. 
         return m_children.at(x).addNode(name, location); // send to next.
+    }
+
+    return -2; // shouldn't ever happen, but if it does something is up with the adder script. 
+}
+
+int XMLNode::addNullNode(const std::string& name, std::list<int> location)
+{
+
+    // check location stack, if it is size 0, we'll place as a child here, otherwise, move down a stack.
+    if (location.size() == 0) {
+        m_children.push_back(XMLNode(name, std::string("")));  // add the new node. 
+        return m_children.size() - 1; // return last element added. 
+    }
+    else {
+        int x = location.front(); // get the top value
+        location.pop_front(); // remove the top element. 
+        return m_children.at(x).addNullNode(name, location); // send to next.
     }
 
     return -2; // shouldn't ever happen, but if it does something is up with the adder script. 
@@ -246,7 +268,7 @@ double XMLNode::getDoubleOrInt(std::string name)
     return 0.0;
 }
 
-int XMLNode::getIntOrDouble(std::string name)
+int XMLNode::getIntOrDouble(std::string name, int def)
 {
     for (unsigned int i{ 0 }; i < m_children.size(); ++i) {
         if (m_children.at(i).getName() == name) {
@@ -255,7 +277,7 @@ int XMLNode::getIntOrDouble(std::string name)
         }
     }
 
-    return 0;
+    return def;
 }
 
 // function searched through pathing to discover the location of the requested data.
@@ -386,9 +408,18 @@ void XMLNode::writeXML(std::string& retval, int indent)
 {
     std::stringstream ss; // for final add to retval.
 
+    
+
     ss << '\n';
     for (int i{ 0 }; i < indent; ++i) {
         ss << '\t';
+    }
+
+    if (m_stringVal == "*NULL*") {
+        // this is a NULL element, not a child or other, and should be created as a self-closing tag.
+        ss << '<' << m_name << " />";
+        retval.append(ss.str());
+        return; // close early, there cannot be children elements here.
     }
 
     ss << '<' <<  m_name;

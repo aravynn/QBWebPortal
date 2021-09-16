@@ -53,9 +53,10 @@ void SQLControl::initializeDatabase()
         "UOfM char(100) DEFAULT 'Ea',\n"
         "IsActive tinyint DEFAULT 1,\n"
         "ReorderPoint int DEFAULT 0,\n"
-        "MaxInv int DEFAULT 0,\n"
+        "MaxInv int DEFAULT -1,\n"
         "RunningTally double DEFAULT 0.0,\n"
         "EditSequence char(50) DEFAULT '',\n"
+        "IsEdited tinyint DEFAULT 0, \n"
         "PRIMARY KEY (ListID)\n"
         ")";
 
@@ -70,7 +71,7 @@ void SQLControl::initializeDatabase()
         "ID int NOT NULL AUTO_INCREMENT,\n"
         "ListID char(40) NOT NULL,\n"
         "ReferenceListID char(40) NOT NULL,\n"
-        "Quantity int DEFAULT 1, \n"
+        "Quantity double DEFAULT 1.0, \n"
         "PRIMARY KEY (ID)\n"
         ")";
 
@@ -150,7 +151,7 @@ void SQLControl::initializeDatabase()
         "TxnID char(40) NOT NULL, \n"
         "ItemListID char(40) NOT NULL, \n"
         "Description text, \n"
-        "Quantity double DEFAULT 0, \n"
+        "Quantity double DEFAULT 0.0, \n"
         "Rate double DEFAULT 0.0, \n"
         "UnitOfMeasure char(50) DEFAULT '', \n"
         "TaxCode char(40) NOT NULL DEFAULT '', \n"
@@ -371,4 +372,17 @@ void SQLControl::initializeDatabase()
     }
 
     std::cout << "Database Creation Complete. \n";
+
+    REQUEST = 
+        "CREATE TABLE error_log ("
+        "ID int NOT NULL AUTO_INCREMENT, \n"
+        "Level int(1) DEFAULT 0, \n"
+        "Note text, \n"
+        "PRIMARY KEY (ID)\n"
+        ")";
+
+    m_stmt.reset(m_con->prepareStatement(REQUEST));
+    if (m_stmt->execute()) {
+        std::cerr << "ERROR @ CreateTable error_log \n"; // ensure no errors occur during request.
+    }
 }

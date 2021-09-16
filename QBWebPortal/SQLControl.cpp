@@ -20,7 +20,7 @@ bool SQLControl::testConnection()
         return false;
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false; // failed.
     }
 
@@ -76,6 +76,22 @@ bool SQLControl::Bind(FilterPass filter)
         int i{ 1 }; // iterator for binding, set numerically.
 
         for (std::pair<std::string, DataPass>& f : filter) {
+
+            // due to complications with the DB, this code will fix the time issues.
+            /*
+            if (f.first == "TimeCreated" || f.first == "TimeModified") {
+                f.second.str.resize(f.second.str.size() - 6);
+                if (f.second.str.at(12) < 54) {
+                    f.second.str.at(12) += 4;
+                    f.second.str.at(11) = (f.second.str.at(11) < 49 ? 0 : f.second.str.at(11) - 1);
+                }
+                else {
+                    f.second.str.at(12) -= 6;
+                }
+
+            }
+            */
+
             // iterate through and bind values for the filters.
             //std::string binder = ":" + f.first;
             if (f.second.o == DPO::NUMBER) {
@@ -98,13 +114,12 @@ bool SQLControl::Bind(FilterPass filter)
     }
 }
 
-void SQLControl::handleException(sql::SQLException& e)
+void SQLControl::handleException(sql::SQLException& e, int line, std::string fn)
 {
-    std::cout << "# ERR: SQLException in " << __FILE__;
-    std::cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << std::endl;
-    std::cout << "# ERR: " << e.what();
-    std::cout << " (MySQL error code: " << e.getErrorCode();
-    std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+    std::string error = "# ERR: SQLException in " + std::string(__FILE__) + "(" + fn + ") on line " + std::to_string(line)
+        + "# ERR: " + e.what() + " (MySQL error code: " + std::to_string(e.getErrorCode()) + ", SQLState: " + e.getSQLState() + " )";
+
+    logError(ErrorLevel::ERROR, error);
 }
 
 SQLControl::SQLControl(std::string password)
@@ -175,7 +190,7 @@ bool SQLControl::SQLSelect(std::vector<std::string> columns, std::string table, 
         m_stmt.reset(m_con->prepareStatement(REQUEST));
         
         // bind values to DB call
-        if (!Bind(filter) && (int)filter.size() > 0) {
+        if (!Bind(filter) && (int)filter.size() > 0 && filter.at(0).first != "") {
             std::cerr << "ERROR @ Bind: Filter failed to bind.";
         }
 
@@ -188,7 +203,7 @@ bool SQLControl::SQLSelect(std::vector<std::string> columns, std::string table, 
 
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
     }
 
     return true;
@@ -300,7 +315,7 @@ bool SQLControl::SQLSearch(std::vector<std::string> getColumns, std::vector<std:
 
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false;
     }
 
@@ -356,7 +371,7 @@ bool SQLControl::SQLUpdate(std::string table, FilterPass updates, FilterPass fil
 
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false;
     }
 
@@ -392,6 +407,7 @@ bool SQLControl::SQLInsert(std::string table, FilterPass inserts)
         REQUEST.append(VALUES + ")");
 
         //std::cout << "Insert SQL: " << REQUEST << '\n';
+        //std::cout << inserts.at(0).second.num << ' ' << inserts.at(1).second.str << '\n';
 
         m_stmt.reset(m_con->prepareStatement(REQUEST));
 
@@ -408,11 +424,109 @@ bool SQLControl::SQLInsert(std::string table, FilterPass inserts)
 
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false;
     }
 
     return true;
+}
+
+// Mass insert function adds or updates for multiple rows.
+// -------------------------------------------------------
+
+bool SQLControl::SQLMassInsert(std::string table, std::vector<FilterPass> inserts)
+{
+    try {
+        std::string REQUEST = "INSERT INTO " + table + " ("; // save for table structure
+        std::string VALUES = "("; // save for value structure
+        std::string ONDUPLICATE = " ON DUPLICATE KEY UPDATE "; // save for update structure
+        FilterPass binds;
+        // for each insert set, create the update format. 
+        // if this is table 1, we'll build the call structure.
+        if (inserts.size() < 1) {
+            // fails, no data to insert.
+            std::cout << "WARNING: Aborting mass import, no dataa given \n";
+            return false; 
+        }
+
+
+        int inSize = (int)inserts.at(0).size();
+        for (int i{ 0 }; i < inSize; ++i) {
+            //std::cout << inserts.at(i).first << ' ' << inserts.at(i).second.str << ' ' << inserts.at(i).second.num << ' ' << inserts.at(i).second.dbl << '\n';
+
+
+            
+            if (i + 1 == inSize) {
+                // at max value
+                REQUEST.append(inserts.at(0).at(i).first);
+                VALUES.append("?");
+                ONDUPLICATE.append(inserts.at(0).at(i).first + " = VALUES(" + inserts.at(0).at(i).first + ")");
+            }
+            else {
+                // normal value.
+                REQUEST.append(inserts.at(0).at(i).first + ", ");
+                VALUES.append("?, ");
+                ONDUPLICATE.append(inserts.at(0).at(i).first + " = VALUES(" + inserts.at(0).at(i).first + "), ");
+            }
+
+            
+        }
+
+        // reserve space total for all binding information. 
+        binds.reserve(inserts.size() * inserts.at(0).size());
+
+        REQUEST.append(") VALUES ");
+        VALUES.append(")");
+        
+        for (int i{ 0 }; i < inserts.size(); ++i) {
+            
+            if (inserts.at(i).size() < 1) {
+                // this is nothing, so therefore we need to ignore it.
+                
+                // in the case of the last element, we'll need to remove the ", " from the end if somehow excess elements exist.
+                if (i + 1 == inserts.size())
+                    REQUEST.resize(REQUEST.size() - 2);
+
+                continue;
+            }
+            
+            if (i + 1 == inserts.size()) {
+                REQUEST.append(VALUES);
+            }
+            else {
+                REQUEST.append(VALUES + ", ");
+            }
+
+            // add to binding string. 
+            binds.insert(binds.end(), inserts.at(i).begin(), inserts.at(i).end());
+
+        }
+        // add the duplicate string.
+        REQUEST.append(ONDUPLICATE);
+
+        //std::cout << REQUEST << '\n';
+
+        m_stmt.reset(m_con->prepareStatement(REQUEST));
+
+        // bind the values
+        if (!Bind(binds) && (int)binds.size() > 0) {
+            //    qWarning() << "ERROR @ Bind: Filter failed to bind.";
+            return false;
+        }
+
+        if (m_stmt->execute()) {
+            std::cerr << "ERROR @ insertaction \n"; // ensure no errors occur during request.
+            return false;
+        }
+
+    }
+    catch (sql::SQLException& e) {
+        handleException(e, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+    
 }
 
 
@@ -449,7 +563,7 @@ bool SQLControl::SQLDelete(std::string table, FilterPass filter)
         }
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false;
     }
 
@@ -481,25 +595,34 @@ bool SQLControl::SQLUpdateOrInsert(std::string table, FilterPass updates, Filter
 // User is responsible for the entire setup externally. Results may vary.
 // ----------------------------------------------------------------------
 
-bool SQLControl::SQLComplex(std::string& request, FilterPass inserts)
+bool SQLControl::SQLComplex(std::string& request, FilterPass inserts, bool expectData)
 {
     try {
 
         m_stmt.reset(m_con->prepareStatement(request));
 
         // bind the values
-        if (!Bind(inserts) && (int)inserts.size() > 0) {
-            std::cerr << "ERROR @ Bind: Filter failed to bind. \n";
+        if (!Bind(inserts) && (int)inserts.size() > 0 && inserts.at(0).first != "") {
+            std::cerr << "ERROR @ Bind: Complex failed to bind. \n";
             return false;
         }
+        if (expectData) {
+            m_res.reset(m_stmt->executeQuery());
 
-        if (m_stmt->execute()) {
-            std::cerr << "ERROR @ complex SQL \n"; // ensure no errors occur during request.
-            return false;
+            if (m_res->rowsCount() < 1) {
+                // nothing returned, send blank
+                return true;
+            }
+        }
+        else {
+            if (m_stmt->execute()) {
+                std::cerr << "ERROR @ complex \n"; // ensure no errors occur during request.
+                return false;
+            }
         }
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false;
     }
 
@@ -543,7 +666,7 @@ bool SQLControl::updateConfigTime(std::string name)
         }
     }
     catch (sql::SQLException& e) {
-        handleException(e);
+        handleException(e, __LINE__, __FUNCTION__);
         return false;
     }
 
@@ -620,6 +743,18 @@ bool SQLControl::generateConnectionFile(std::string username, std::string passwo
 
 
 
+}
+
+void SQLControl::logError(ErrorLevel level, std::string& message)
+{
+    // log errors to SQL in the case of problems. 
+    FilterPass inserts;
+    inserts.resize(2);
+    inserts.at(0) = { "Level", (long long)level };
+    inserts.at(1) = { "Note", message};
+
+    // standard insert handles the process. 
+    SQLInsert("error_log", inserts);
 }
 
 bool SQLControl::loadConnection(std::string password)
@@ -718,7 +853,7 @@ void SQLControl::connect()
         connected = true;
     }
     catch (sql::SQLException& e) {
-        handleException(e);   
+        handleException(e, __LINE__, __FUNCTION__);
     }
 }
 

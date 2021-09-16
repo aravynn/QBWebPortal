@@ -3,9 +3,9 @@
 #include <string>
 
 #include "XMLParser.h"
-#include "ErrorReporting.h"
 #include <comdef.h>
 #include <comutil.h>
+#include "Enums.h"  // ThrownError, ErrorLevel
 
 #pragma comment(lib, "comsuppwd.lib")
 

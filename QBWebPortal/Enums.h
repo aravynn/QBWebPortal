@@ -5,11 +5,10 @@
 // error level for error reporting
 // error level is done by lowest displayed. therefore, NOTICE and ALL are interchangeable.
 enum class ErrorLevel {
-	NONE,
-	ERROR,
-	WARNING,
 	NOTICE,
-	ALL
+    WARNING,
+    ERROR,
+    EXTRA
 };
 
 /**
@@ -39,3 +38,16 @@ struct DataPass {
     DataPass() {} // default blank constructor.
 };
 
+
+/**
+* 
+* Struct for error reporting. 
+* Used mainly for throw functionality. 
+* 
+*/
+
+struct ThrownError {
+    ErrorLevel error;
+    std::string data;
+    ThrownError(ErrorLevel e, std::string& d) : error{ e }, data{ d } {}
+};

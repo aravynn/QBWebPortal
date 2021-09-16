@@ -48,7 +48,7 @@
 #include <cppconn/statement.h>
 #include <cppconn/prepared_statement.h>
 
-#include "Enums.h" // dataType, datapass objects for creating and storing data. 
+#include "Enums.h" // dataType, datapass objects for creating and storing data. ErrorLevel for error reporting
 
 // sample users for SQL
 // root uDx@7euG?/d>
@@ -81,7 +81,7 @@ private:
     std::string whereString(FilterPass filter, std::string separator);   // create the "where" component of a string.
     bool Bind(FilterPass filter);
 
-    void handleException(sql::SQLException& e);
+    void handleException(sql::SQLException& e, int line, std::string fn);
 
     bool loadConnection(std::string password);
     void connect();
@@ -96,10 +96,11 @@ public:
     bool SQLSearch(std::vector<std::string> getColumns, std::vector<std::string> searchColumns, std::string table, std::string searchTerm, FilterPass filter, int limit = -1, int offset = -1, bool desc = false);
 
     bool SQLUpdate(std::string table, FilterPass updates, FilterPass filter);
-    bool SQLInsert(std::string table, FilterPass inserts);
+    bool SQLInsert(std::string table, FilterPass inserts);              // for a single insert
+    bool SQLMassInsert(std::string table, std::vector<FilterPass> inserts);     // for many lines insert
     bool SQLDelete(std::string table, FilterPass filter);
     bool SQLUpdateOrInsert(std::string table, FilterPass updates, FilterPass filter);
-    bool SQLComplex(std::string& request, FilterPass inserts);
+    bool SQLComplex(std::string& request, FilterPass inserts, bool expectData = false);
 
     // config management.
     std::string getConfigTime(std::string name);
@@ -114,6 +115,8 @@ public:
     bool generateConnectionFile(std::string username, std::string password, std::string ip, std::string database, std::string encryptionPassword);
     
     bool connected = false; // quick check if a valid connection exists.
+
+    void logError(ErrorLevel level, std::string& message);
 
 };
 

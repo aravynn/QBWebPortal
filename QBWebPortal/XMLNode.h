@@ -54,6 +54,7 @@ public:
 	~XMLNode();
 	int addNode(const std::string& name, const std::string& data, std::list<int> location);	// add data node child, return position of child
 	int addNode(const std::string& name, std::list<int> location);							// add parent node child, return position of child.
+	int addNullNode(const std::string& name, std::list<int> location);						// add a data child node(string) with no data, return child position.
 
 	bool addAttribute(const std::string& name, const std::string& data);	// add attribute to this node.
 	bool updateAttribute(const std::string& name, const std::string& data);	// edit an existing attribute.
@@ -71,7 +72,7 @@ public:
 	int getChildValue(std::string name, int i = 0);
 	double getChildValue(std::string name, double d = 0.0);
 	double getDoubleOrInt(std::string name);
-	int getIntOrDouble(std::string name);
+	int getIntOrDouble(std::string name, int def = 0);
 
 	bool getNodeFromPath(std::list<int> path, XMLNode& retNode);				// use direct int to get path location of node
 	bool getNodeFromNamePath(std::list<std::string> path, XMLNode& retNode);	// use name search to get path location of node

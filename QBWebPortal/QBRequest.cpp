@@ -18,6 +18,12 @@ QBRequest::QBRequest(std::string ID, std::string appName, std::string company) :
             if (!SUCCEEDED(hr)) {
                 m_ErrorStatus = true;
                 m_Msg = "ERROR: failed to create session.";
+                
+                // process an error
+                std::string erh{ "Failed To Create Quickbooks Session" };
+                
+                ThrownError e((ErrorLevel)2, erh);    // (ErrorLevel)2 due to externally programmed #DEFINE ERROR = 0
+                throw e;
             }
             else {
                 isSessionOn = true;
@@ -26,11 +32,19 @@ QBRequest::QBRequest(std::string ID, std::string appName, std::string company) :
         else {
             m_ErrorStatus = true;
             m_Msg = "ERROR: Failed to Open Connection.";
+
+            std::string erh{ "Failed To Open Quickbooks Connection" };
+            ThrownError e((ErrorLevel)2, erh);
+            throw e;
         }
     }
     else {
         m_ErrorStatus = true;
         m_Msg = "ERROR: Create instance failed.";
+
+        std::string erh{ "Failed To Create Quickbooks Instance" };
+        ThrownError e((ErrorLevel)2, erh);
+        throw e;
     }
 }
 
@@ -61,6 +75,11 @@ void QBRequest::processRequest(std::string& requestXML)
     else {
         m_ErrorStatus = true;
         m_Msg = "ERROR: Failed to process message.";
+
+        std::string erh{ "Failed To Create Quickbooks Message Request: " + requestXML };
+        ThrownError e((ErrorLevel)2, erh);
+        ::SysFreeString(bstrResXML);    // free before throw, since this exits function.
+        throw e;
     }
 
     ::SysFreeString(bstrResXML);

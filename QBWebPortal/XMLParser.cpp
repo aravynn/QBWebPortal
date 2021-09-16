@@ -100,49 +100,28 @@ XMLParser::XMLParser(std::string& data)
 				nodePath.pop_back();
 			}
 			else if (rawData.at(i - 1).first != XMLStep::CONTENT) {
-				std::cerr << "ERROR: Stack Mismatch for " << nodeTitleStack.top() << " and " << rawData.at(i).second << '\n';
+				//std::cerr << "ERROR: Stack Mismatch for " << nodeTitleStack.top() << " and " << rawData.at(i).second << '\n';
 				m_error = true;
+				
+				// generate error, throw for catch.
+				std::string error = "XML Parser Footer: Stack Mismatch for " + nodeTitleStack.top() + " and " + rawData.at(i).second + " Raw Data: " + data;
+				ThrownError e(ErrorLevel::ERROR, error);
+				throw e;
 			}
 			break;
 		case XMLStep::CONTENT:
 			// we... don't do anything here actually.
-			std::cerr << "ERROR: Raw Content leaked for " << rawData.at(i).second << '\n';
-			m_error = true;
+			{
+				//std::cerr << "ERROR: Raw Content leaked for " << rawData.at(i).second << '\n';
+				m_error = true;
+				// generate error, throw for catch.
+				std::string error = "XML Parser Content: Raw Content leaked for " + rawData.at(i).second + " Raw Data: " + data;
+				ThrownError e(ErrorLevel::WARNING, error);
+				throw e;
+			}
 			break;
 		}
 	}
-	/*
-	std::cout << "Calculated Node Structure \n";
-	std::cout << "------------------------- \n";
-
-	m_nodes.write(0);
-
-	std::cout << "Sample Node Search results. \n";
-	std::cout << "--------------------------- \n";
-
-	std::cout << "Integer:\n";
-	std::list<int> searchList = { 0, 0, 0, 0, 2 };
-	
-	XMLNode x;
-
-	if (m_nodes.getNodeFromPath(searchList, x)) {
-		x.write(0);
-	}
-	else {
-		std::cout << "Did not find query. \n";
-	}
-
-
-	std::cout << "String:\n";
-	std::list<std::string> searchList2 = { "QBXML", "QBXMLMsgsRq", "InventorySiteAddRs", "InventorySiteRet", "SiteDesc"};
-
-	if (m_nodes.getNodeFromNamePath(searchList2, x)) {
-		x.write();
-	}
-	else {
-		std::cout << "did not find search query";
-	}
-	*/
 }
 
 XMLParser::~XMLParser()
@@ -241,121 +220,3 @@ bool XMLParser::errorStatus()
 {
 	return m_error;
 }
-
-/*
-switch (data.at(i)) {
-		case '<':
-			// opens a new node header
-			if (step == XMLStep::NOTNODE) {
-				ss.str(std::string()); // clear the string, but do not save it. it is space.
-			}
-			else if(step == XMLStep::CONTENT) {
-				// content to save.
-				std::cout << ss.str() << '\n';
-				contentString = ss.str();
-				ss.str(std::string());
-			}
-
-			step == XMLStep::HEADER;
-
-			break;
-		case '>':
-			// closes the node header
-			if (step == XMLStep::HEADER) {
-				step = XMLStep::CONTENT;
-				std::cout << ss.str() << '\n';
-				contentTitle = ss.str();
-				ss.str(std::string());
-			}
-			else if(step == XMLStep::ATTRIBUTE)
-			{
-				step = XMLStep::CONTENT;
-			}
-			else if (step == XMLStep::METADATA) {
-				// uninmportant metadata.
-				step == XMLStep::NOTNODE;
-				ss.str(std::string());
-			}
-			else {
-				// this is the end of the footer, we can save the data to a node.
-				// HANDLE THE NODE DATA HERE ---------------------------------------------------------!!
-
-				// ---------------------------------------------------
-				// TEMPORARY: we'll outpus the data as a cout to verify.
-				std::cout << "Title: " << contentTitle << " Content: " << contentString << '\n';
-				for (int q{ 0 }; q < attributeData.size(); ++q) {
-					std::cout << '\t' << attributeData.at(q).first << ' ' << attributeData.at(q).second << '\n';
-				}
-
-
-				step == XMLStep::NOTNODE;
-			}
-			break;
-		case '!': // comment, same actions as metadata.
-		case '?':
-			// XML metadata. We can dispose of this, assuming out last character was a <
-			if (step == XMLStep::HEADER) {
-				step = XMLStep::METADATA;
-			}
-			else {
-				ss << data.at(i); // store the data.
-			}
-			break;
-		case ' ':
-			// spaces within headers denote the end of the portion and possible attributes.
-			if (step == XMLStep::HEADER) {
-				step == XMLStep::ATTRIBUTE;
-				std::cout << ss.str() << '\n';
-				contentTitle = ss.str();
-				ss.str(std::string());
-			}
-			else if (step == XMLStep::ATTRIBUTE) {
-				// technically, do nothing.
-			}
-			else {
-				ss << data.at(i);
-			}
-			break;
-		case '=':
-			// in the body of an open node, this relates to a starting attribute, after name
-			if (step == XMLStep::ATTRIBUTE) {
-				// we've got a title.
-				std::cout << ss.str() << '\n';
-				attributeData.push_back({ ss.str(), "" }); // sets title only, we need to set the data.
-				ss.str(std::string());
-			}
-			else {
-				ss << data.at(i);
-			}
-			break;
-		case '"':
-			// opener and closer of an attribute data.
-			if (step == XMLStep::ATTRIBUTE) {
-				// attribute opener
-				step = XMLStep::ATTRIBUTECONTENT;
-			}
-			else if (step == XMLStep::ATTRIBUTECONTENT) {
-				// this is the closer
-				std::cout << ss.str() << '\n';
-				attributeData.at(attributeData.size() - 1).second = ss.str();
-				ss.str(std::string());
-			}
-			else {
-				ss << data.at(i); // we'll save this.
-			}
-			break;
-		case '/':
-			// after a < denotes a closing tag for a node, by title.
-			if (step == XMLStep::HEADER) {
-				step = XMLStep::FOOTER;
-			}
-			else {
-				ss << data.at(i);
-			}
-			break;
-		default:
-			// remaining data should be stored and used, regardless of position.
-			ss << data.at(i);
-			break;
-		}
-*/
