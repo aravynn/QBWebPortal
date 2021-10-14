@@ -16,6 +16,9 @@
 
 #include "QBXMLSync.h"
 
+#include <stdlib.h> // sleep
+
+#include <thread> // multithreading.
 
 int main()
 {
@@ -32,81 +35,68 @@ int main()
 
     std::cout << "\n";
     */
-    try {
-        QBXMLSync qbs("QBX", "MEPBro Sampler", "TestPassword"); //tpass); // adding password coverage temporarily until we're ready for production values.
+    std::shared_ptr<bool> isActive = std::make_shared<bool>(true);
+    std::shared_ptr<TransferStatus> status = std::make_shared<TransferStatus>();
 
-        qbs.timeReset(SQLTable::inventory, 2002, 03, 13, 19, 23, 45);
+    auto run = [](std::string password, std::shared_ptr<bool> isActive, std::shared_ptr<TransferStatus> status) {
+        try {
+            QBXMLSync qbs("QBX", "MEPBro Sampler", "TestPassword", status, isActive); //tpass); // adding password coverage temporarily until we're ready for production values.
 
-        std::cout << "Adding Inventory: \n"
-            "----------------- \n";
-        qbs.getInventory();
+            //qbs.timeReset(SQLTable::inventory, 2002, 03, 13, 19, 23, 45);
 
-        std::cout << "Complete                                     \n";
+            qbs.timeReset(SQLTable::inventory, 1970, 1, 1, 12, 0, 0);
+            qbs.getInventory(); // get everything. 
+            std::cout << "inventory complete \n";
 
-        std::cout << "Adding Sales Orders: \n"
-            "------------------- \n";
-        qbs.getSalesOrders();
+            //qbs.updateInventoryPartnumbers(50, "ItemInventoryMod");
+            std::cout << "ItemInventoryMod complete \n";
 
-        std::cout << "Complete                                     \n";
+            qbs.updateInventoryPartnumbers(50, "ItemInventoryAssemblyMod");
+            std::cout << "ItemInventoryAssemblyMod complete \n";
 
-        /*
-        std::cout << "Adding Estimates: \n"
-                     "----------------- \n";
-        qbs.getEstimates();
+            // download full data sync.
+            //if (qbs.fullsync()) {
 
-        std::cout << "Complete                                     \n";
+                // testing, do a BATCH update.
+            //    qbs.updateMinMaxBatch(50);
+            //}
 
-        std::cout << "Adding Invoices: \n"
-                     "---------------- \n";
-        qbs.getInvoices();
-
-        std::cout << "Complete                                     \n";
-
-        std::cout << "Adding Customers: \n"
-                     "----------------- \n";
-        qbs.getCustomers();
-
-        std::cout << "Complete                                     \n";
-
-        */
-
-        std::cout << "Adding Price Levels: \n"
-            "-------------------- \n";
-        qbs.getPriceLevels();
-        std::cout << "Complete                                     \n";
-
-        std::cout << "Adding Sales Terms: \n"
-            "------------------- \n";
-        qbs.getSalesTerms();
-        std::cout << "Complete                                     \n";
-
-        std::cout << "Adding Tax Codes: \n"
-            "----------------- \n";
-        qbs.getTaxCodes();
-        std::cout << "Complete                                     \n";
-
-        std::cout << "Adding Sales Reps: \n"
-            "------------------ \n";
-        qbs.getSalesReps();
-        std::cout << "Complete                                     \n";
-
-        std::cout << "Update Min/Max: \n"
-            "--------------- \n";
-
-        // testing, do a BATCH update.
-        qbs.updateMinMaxBatch(50);
-
-        std::cout << "Complete                                     \n\n\n";
-    }
-    catch (ThrownError e) {
-        std::cout << "Failed to load Quickbooks\n";
-        SQLControl S("TestPassword");
-        S.logError(e.error, e.data);
-    }
-        
+            std::cout << "Update Complete \n";
+        }
+        catch (ThrownError e) {
+            std::cout << "Failed to load Quickbooks\n";
+            SQLControl S("TestPassword");
+            S.logError(e.error, e.data);
+        }
+    };
 
      //   sq.generateConnectionFile(user, pass, ip, db, xmlPass); // ("QBXML", "cVyio%90pxE4", "tcp://127.0.0.1:3306", "qbxmlstorage", "TestPassword");
    
+    /*
+    for (int mins{ 60 }; mins > 0; --mins) {
+        for (int secs{ 60 }; secs > 0; --secs) {
+            Sleep(1000);
+            std::cout << "Wait Time Remaining: " << mins << ":" << secs << "\r";
+        }
+    }*/
+
+    //(60 * 60 * 1000); // 1 hour, when we'll need it.
+
+    std::thread mythread(run, "TestPassword", isActive, status);
+
+    mythread.join();
+
+    int i{ 0 };
+
+    std::cin >> i;
+
+    if (i > 0) {
+        *isActive = false;
+    }
+
+    std::cin >> i;
+
+
     CoUninitialize();
 
     return 0;

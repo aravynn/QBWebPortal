@@ -78,9 +78,14 @@ bool SQLControl::Bind(FilterPass filter)
         for (std::pair<std::string, DataPass>& f : filter) {
 
             // due to complications with the DB, this code will fix the time issues.
-            /*
             if (f.first == "TimeCreated" || f.first == "TimeModified") {
-                f.second.str.resize(f.second.str.size() - 6);
+               
+                // remove the old addition of the UTC offset.
+                if (f.second.str.size() > 19) {
+                    f.second.str.resize(f.second.str.size() - 6);
+                }
+                /*
+                // correct the time to the local timezone. 
                 if (f.second.str.at(12) < 54) {
                     f.second.str.at(12) += 4;
                     f.second.str.at(11) = (f.second.str.at(11) < 49 ? 0 : f.second.str.at(11) - 1);
@@ -88,9 +93,15 @@ bool SQLControl::Bind(FilterPass filter)
                 else {
                     f.second.str.at(12) -= 6;
                 }
+                */
+                // add a default time if cut off for some reason.
+                if (f.second.str.size() < 19) {
+                    f.second.str = f.second.str + "12:00:00";
+                }
 
+                // remove the "T" and replace with a space.
+                f.second.str.at(10) = ' ';
             }
-            */
 
             // iterate through and bind values for the filters.
             //std::string binder = ":" + f.first;

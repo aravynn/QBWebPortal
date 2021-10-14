@@ -5,8 +5,17 @@ void QBXMLSync::updateInventoryMinMax(std::string ListID, int min)
     // --------------------------------------------------------------------------------------------------------------------!!
 }
 
-QBXMLSync::QBXMLSync(std::string QBID, std::string appName, std::string password, std::shared_ptr<bool> active) : m_sql{ SQLControl(password) }, m_req{ QBRequest(QBID, appName) }, m_isActive{ active }
+QBXMLSync::QBXMLSync(std::string QBID, std::string appName, std::string password, std::shared_ptr<TransferStatus> status, std::shared_ptr<bool> active) 
+    : m_sql{ SQLControl(password) }, m_req{ QBRequest(QBID, appName) }, m_isActive{ active }
 {
+    // if an external status object is given, assign it, otherwise, assume internal only.
+    if (status != nullptr) {
+        m_status = status;
+    }
+    else {
+        m_status = std::make_shared<TransferStatus>();
+    }
+
     // check if a connection was indeed created, and manage it. This will change completely in the UI phase.
     if (!m_sql.connected) {
         // generate a connection file, if one does not exist. 
@@ -281,17 +290,19 @@ bool QBXMLSync::getInventory()
 
     std::list<int> path = { 0, 0, 0 }; // path direct to top node of data.
 
-    int left{ 1 };
+    //int left{ 1 };
 
-    while (left > 0) {
+    m_status->inventory = 1;
 
-        left = iterate(data, iterator, "ItemQueryRq", 100, time, true);
+    while (m_status->inventory > 0) {
+
+        m_status->inventory = iterate(data, iterator, "ItemQueryRq", 100, time, true);
 
         if (!isActive()) {
             return false;
         }
 
-        std::cout << "Left: " << left << " Datasize: " << data.size() << '\r';
+        //std::cout << "Remaining: " << m_status->inventory << " Datasize: " << data.size() << '\r';
 
         // declare storage variables for mass calls.
         std::vector<FilterPass> insertsInventory;       // main invnetory content
@@ -411,6 +422,22 @@ bool QBXMLSync::getInventory()
     }
 
     return m_sql.updateConfigTime("inventory");
+}
+
+bool QBXMLSync::fullsync()
+{
+    // run a sync of everything, for simpler code later.
+    if (!getInventory()) { return false; }
+    if (!getSalesOrders()) { return false; }
+    if (!getEstimates()) { return false; }
+    if (!getInvoices()) { return false; }
+    if (!getCustomers()) { return false; }
+    if (!getPriceLevels()) { return false; }
+    if (!getSalesTerms()) { return false; }
+    if (!getTaxCodes()) { return false; }
+    if (!getSalesReps()) { return false; }
+
+    return true; // everything worked.
 }
 
 bool QBXMLSync::getInventory_old()
@@ -535,17 +562,19 @@ bool QBXMLSync::getSalesOrders()
 
     std::list<int> path = { 0, 0, 0 }; // path direct to top node of data.
 
-    int left{ 1 };
+    //int left{ 1 };
 
-    while (left > 0) {
+    m_status->salesorders = 1;
 
-        left = iterate(data, iterator, "SalesOrderQueryRq", 50, time, false, true, true);
+    while (m_status->salesorders > 0) {
+
+        m_status->salesorders = iterate(data, iterator, "SalesOrderQueryRq", 50, time, false, true, true);
 
         if (!isActive()) {
             return false;
         }
 
-        std::cout << "Left: " << left << " Datasize: " << data.size() << '\r';
+        //std::cout << "Left: " << m_status->salesorders << " Datasize: " << data.size() << '\r';
 
         std::string table{ "orders" }; // GENERIC table used for all orders.
         std::vector<FilterPass> inserts;        // sales orders
@@ -828,18 +857,23 @@ bool QBXMLSync::getEstimates()
     std::string data;
     std::string iterator;
 
-    int loopLimit = 0;
-
     std::string time = m_sql.getConfigTime("estimates");
 
     std::list<int> path = { 0, 0, 0 }; // path direct to top node of data.
 
-    while (iterate(data, iterator, "EstimateQueryRq", 50, time, false, true, true) > 0) {
-        std::cout << "No: " << ++loopLimit << " Datasize: " << data.size() << '\r';
+    //int left{ 1 };
+
+    m_status->estimates = 1;
+
+    while (m_status->estimates > 0) {
+
+        m_status->estimates = iterate(data, iterator, "EstimateQueryRq", 50, time, false, true, true);
 
         if (!isActive()) {
             return false;
         }
+
+        //std::cout << "Left: " << m_status->estimates << " Datasize: " << data.size() << '\r';
 
         std::string table{ "orders" }; // GENERIC table used for all orders.
         std::vector<FilterPass> inserts;        // estimates
@@ -1117,19 +1151,22 @@ bool QBXMLSync::getInvoices()
     std::string data;
     std::string iterator;
 
-    int loopLimit = 0;
-
     std::string time = m_sql.getConfigTime("invoices");
 
     std::list<int> path = { 0, 0, 0 }; // path direct to top node of data.
 
-    while (iterate(data, iterator, "InvoiceQueryRq", 50, time, false, true, true) > 0) {
+    //int left{ 1 };
+    m_status->invoices = 1;
+
+    while (m_status->invoices > 0) {
+
+        m_status->invoices = iterate(data, iterator, "InvoiceQueryRq", 50, time, false, true, true);
 
         if (!isActive()) {
             return false;
         }
 
-        std::cout << "No: " << ++loopLimit << " Datasize: " << data.size() << '\r';
+        //std::cout << "Left: " << m_status->invoices << " Datasize: " << data.size() << '\r';
 
         std::string table{ "orders" }; // GENERIC table used for all orders.
         std::vector<FilterPass> inserts;        // estimates
@@ -1410,18 +1447,22 @@ bool QBXMLSync::getCustomers()
     std::string data;
     std::string iterator;
 
-    int loopLimit = 0;
-
     std::string time = m_sql.getConfigTime("customers");
 
     std::list<int> path = { 0, 0, 0 }; // path direct to top node of data.
 
-    while (iterate(data, iterator, "CustomerQueryRq", 50, time) > 0) {
-        std::cout << "No: " << ++loopLimit << " Datasize: " << data.size() << '\r';
+    //int left{ 1 };
+    m_status->customers = 1;
+
+    while (m_status->customers > 0) {
+
+        m_status->customers = iterate(data, iterator, "CustomerQueryRq", 50, time);
 
         if (!isActive()) {
             return false;
         }
+
+        std::cout << "Left: " << m_status->customers << " Datasize: " << data.size() << '\r';
 
         std::string table{ "customers" };
         std::vector<FilterPass> inserts;
@@ -2110,7 +2151,9 @@ bool QBXMLSync::updateMinMaxBatch(int batch) {
         // max will be manually set.
 
         // while loop for data assignment
-        int loop = 0;
+        //int loop = 0;
+        m_status->minmax = 0;
+        
         int countToUpdate = 0;
 
         while (m_sql.nextRow()) {
@@ -2125,8 +2168,10 @@ bool QBXMLSync::updateMinMaxBatch(int batch) {
             maxInv.push_back(m_sql.getInt("MaxInv"));
 
             if (countToUpdate++ >= batch) {
-                std::cout << "                                                    \r";
-                std::cout << "Updating Maximums: " << ++loop << ' ';
+                //std::cout << "                                                    \r";
+                //std::cout << "Updating Maximums: " <<  << ' ';
+                m_status->minmax++;
+                
                 // send through the update here. 
 
                 if (!updateMinMaxInventory(listIDs, editSequences, maxInv, true)) { // true for always maxiumums.
@@ -2175,7 +2220,7 @@ bool QBXMLSync::updateMinMaxBatch(int batch) {
         // max will be manually set.
 
         // while loop for data assignment
-        int loop = 0;
+        //int loop = 0;
         int countToUpdate = 0;
 
         while (m_sql.nextRow()) {
@@ -2190,8 +2235,11 @@ bool QBXMLSync::updateMinMaxBatch(int batch) {
             MaxInv.push_back(m_sql.getInt("MaxInv"));
 
             if (countToUpdate++ >= batch) {
-                std::cout << "                                                       \r";
-                std::cout << "Updating Minimums: " << ++loop << ' ';
+                //std::cout << "                                                       \r";
+                //std::cout << "Updating Minimums: " << ++loop << ' ';
+                
+                m_status->minmax++;
+                
                 // send through the update here. 
 
                 if (!updateMinMaxInventory(listIDs, editSequences, ReorderPoints, false)) { // true for always maxiumums.
@@ -2415,4 +2463,237 @@ bool QBXMLSync::timeReset(SQLTable table, std::string datetime) {
     updates.push_back({ "time", datetime });
 
     return m_sql.SQLUpdate("sync_config", updates, filters);
+}
+
+bool QBXMLSync::updateInventoryPartnumbers(int limit, std::string type)
+{
+    // will run a single time to update all parts of the DB inventory. Will require that inventory is synced prior to running.
+
+    FilterPass inserts;
+    
+    // get all of the products that have been changed, and process them through XML. If there is a Max, we'll need to also update that to <Max ></Max>
+
+    std::string request = "SELECT ListID, Name, EditSequence FROM inventory WHERE ProductType = ?  AND IsActive = 1";
+
+    inserts.push_back({ "ProductType", std::string(type == "ItemInventoryMod" ? "ItemInventoryRet" : "ItemInventoryAssemblyRet")});
+
+    if (!m_sql.SQLComplex(request, inserts, true)) {
+        std::string err = "part number update Failed File: " + std::string(__FILE__) + " Line: " + std::to_string(__LINE__);
+        m_sql.logError((ErrorLevel)2, err);
+        return false;
+    }
+    else {
+        std::vector<std::string> listIDs;
+        std::vector<std::string> editSequences;
+        std::vector<std::string> renames;
+        listIDs.reserve(limit);
+        editSequences.reserve(limit);
+        renames.reserve(limit);
+
+        // generate the lists to be updated.
+        // while loop for data assignment
+
+        int countToUpdate = 0;
+
+        std::cout << "starting " << type << '\n';
+        int totalCount = 0;
+
+        while (m_sql.nextRow()) {
+
+            totalCount++;
+
+            if (!isActive()) {
+                return false;
+            }
+
+            listIDs.push_back(m_sql.getString("ListID"));
+            editSequences.push_back(m_sql.getString("EditSequence"));
+            
+            //name edit occurs here, based on name actual length.
+            std::string newName = m_sql.getString("Name");
+            
+            if (newName[2] == '-') {
+                if (newName.size() >= 31) {
+                    // longer names will replace the first - with *
+                    newName[2] = '*';
+                }
+                else {
+                    // short names will add a 1 in front of the name.
+                    newName = "1" + newName;
+                }
+            }
+            else {
+                continue; // skip this line.
+            }
+            renames.push_back(newName);
+
+            if (countToUpdate++ >= limit) {
+                // send through the update here.
+
+                //std::cout << "row: " << countToUpdate << " \n";
+
+                if (!updatePartsBatch(listIDs, editSequences, renames, type)) { // true for always maxiumums.
+                    std::string err = "rename update Failed File: " + std::string(__FILE__) + " Line: " + std::to_string(__LINE__);
+                    m_sql.logError((ErrorLevel)2, err);
+                    return false;
+                }
+                listIDs.clear();
+                editSequences.clear();
+                renames.clear();
+                countToUpdate = 0;
+                }
+            }
+            
+
+        // final check determines if there is anything outstanding to be dealt with.
+        if (!listIDs.empty()) {
+            if (!updatePartsBatch(listIDs, editSequences, renames, type)) { // true for always maxiumums.
+                std::string err = "rename update Failed File: " + std::string(__FILE__) + " Line: " + std::to_string(__LINE__);
+                m_sql.logError((ErrorLevel)2, err);
+                return false;
+            }
+        }
+
+        std::cout << "total count: " << totalCount << '\n';
+    }
+
+    
+
+    return true;
+}
+
+bool QBXMLSync::updatePartsBatch(const std::vector<std::string>& listID, std::vector<std::string>& editSequence, std::vector<std::string> newValue, std::string requestType) {
+    
+    // must be done manually and bypass the main function due to the unique construction requirements.
+    std::string request{ "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                        "<?qbxml version=\"13.0\"?>\n"
+                        "<QBXML>\n"
+                        "\t<QBXMLMsgsRq onError=\"stopOnError\">" };
+
+    // get data required for the update.
+
+    std::string tblname = "ItemQueryRq";
+    XMLNode QBQuery{ tblname };
+
+    // for each, add a mod node here.
+    for (int i{ 0 }; i < listID.size(); ++i) {
+        std::string name = requestType + "Rq";
+        XMLNode QBAlter{ name };
+
+        QBAlter.addNode(requestType, std::list<int>{});
+        std::list<int> path{ 0 };   // for current node 
+
+        QBAlter.addNode("ListID", listID.at(i), path);
+        QBAlter.addNode("EditSequence", editSequence.at(i), path);
+        QBAlter.addNode("Name", newValue.at(i), path);
+
+        // simultaneously, let'd create the Rq for the inventory query.
+        QBQuery.addNode("ListID", listID.at(i), std::list<int>{});
+
+        std::string xml;
+
+        QBAlter.writeXML(xml, 2);
+
+        request.append(xml);
+    }
+    
+    // close the node tree, full call here.
+    request.append("\n\t</QBXMLMsgsRq>\n"
+        "</QBXML>");
+
+    // send the completed request, and get the response data. 
+    m_req.processRequest(request);
+
+    // get and process return data.
+    std::string returnData = m_req.getResponse();
+
+    XMLNode nodeRet;
+
+    try {
+        XMLParser p(returnData);
+        nodeRet = p.getNode();
+    }
+    catch (ThrownError e) {
+        m_sql.logError(e.error, e.data);
+    }
+
+    XMLNode respParentNode; // each child is the ones we need to check
+    nodeRet.getNodeFromPath(std::list<int>{0, 0}, respParentNode);
+    for (int i{ 0 }; i < respParentNode.getChildCount(); ++i) {
+        XMLNode child = respParentNode.child(i);
+        std::string code = "statusCode";
+        if (child.getAttribute(code).getIntData() != 0) {
+            std::cout << "ERROR: Update Node return bad.\n";
+            child.write();
+            return false;
+        }
+    }
+
+    // SINCE response data is terribly lacking, for reasons undisclosed, we'll need to do a manual pull for the inventory call. 
+    std::string xml = XMLParser::createXMLRequest(QBQuery);
+    m_req.processRequest(xml);
+    returnData = m_req.getResponse();
+
+    try {
+        XMLParser pp(returnData);
+        nodeRet = pp.getNode();
+    }
+    catch (ThrownError e) {
+        m_sql.logError(e.error, e.data);
+    }
+
+    nodeRet.getNodeFromPath(std::list<int>{0, 0}, respParentNode);
+
+    for (int i{ 0 }; i < respParentNode.getChildCount(); ++i) {
+        XMLNode child = respParentNode.child(i);
+        std::string code = "statusCode";
+        if (child.getAttribute(code).getIntData() != 0) {
+            std::string err = "Node Return Failed File: " + std::string(__FILE__) + " Line: " + std::to_string(__LINE__) + " Return Data: " + returnData + " Request: " + request;
+            m_sql.logError(ErrorLevel::WARNING, err);
+
+            return false;
+        }
+    }
+
+    XMLNode nodeChildRet;
+    nodeRet.getNodeFromPath(std::list<int>{0, 0, 0}, nodeChildRet); // this gives the Rs node, which has the Ret children.
+
+    std::vector<FilterPass> insertsInventory;
+
+    int nodeCount = nodeChildRet.getChildCount();
+
+    // save space for all insert lines, assuming that there is sufficient numbers.
+    insertsInventory.resize(nodeCount);
+
+    for (int i{ 0 }; i < nodeCount; ++i) {
+        // for each child, convert and output. 
+
+        XMLNode child = nodeChildRet.child(i);
+
+        insertsInventory.at(i).resize(2); // all the data we'll need to pass.
+        insertsInventory.at(i).at(0) = { "ListID", child.getChildValue("ListID", "") };
+        insertsInventory.at(i).at(1) = { "EditSequence", child.getChildValue("EditSequence", "") };
+        insertsInventory.at(i).at(1) = { "Name", child.getChildValue("Name", "") };
+    }
+
+    // this is techincally a "hack" to force through updates, this shouldn't have any impact on the final inserts, or create "blank" inserts.
+    std::string table = "inventory";
+
+    // run the actual inserts here 
+
+    if (insertsInventory.size() > 0) {
+        if (!m_sql.SQLMassInsert(table, insertsInventory)) {
+            std::string err = "part number inventory adjust Failed File: " + std::string(__FILE__) + " Line: " + std::to_string(__LINE__);
+            m_sql.logError(ErrorLevel::WARNING, err);
+            return false;
+        }
+    }
+    else {
+        // not an error
+        std::cout << "No updates returned for Mass edit. \n";
+        std::cout << "Return Data: " << returnData << '\n';
+        std::cout << "Request: " << request << '\n';
+    }
+
+    return true;
 }

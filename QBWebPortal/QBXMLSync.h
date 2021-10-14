@@ -15,6 +15,7 @@
 #include <sstream> // for date generator.
 #include <iomanip> // setw
 #include <memory>  // weak, shared pointers.
+#include <map>	   // will be used for back and forth data transfer.
 
 // app classes. 
 #include "SQLControl.h"
@@ -31,12 +32,23 @@ enum class SQLTable {
 	estimate
 };
 
+// used for data transfer to and from the new thread.
+struct TransferStatus {
+	int inventory{ -1 };
+	int customers{ -1 };
+	int salesorders{ -1 };
+	int estimates{ -1 };
+	int invoices{ -1 };
+	int minmax{ -1 };
+};
+
 class QBXMLSync
 {
 private:
 	SQLControl m_sql;	// connects to SQL and handles any collection and return. 
 	QBRequest m_req;	// connects to QB and handles any collection and return. 
 	std::shared_ptr<bool> m_isActive; // bool for determining the status of the run. will be defaulted to TRUE externally.
+	std::shared_ptr<TransferStatus> m_status;
 
 	void updateInventoryMinMax(std::string ListID, int min); // per line, update the min/max, to minimum, 0.
 
@@ -47,8 +59,10 @@ private:
 
 	bool isActive();
 public:
-	QBXMLSync(std::string QBID, std::string appName, std::string password, std::shared_ptr<bool> active = nullptr);	// generate the SQL and request items. 
+	QBXMLSync(std::string QBID, std::string appName, std::string password, std::shared_ptr<TransferStatus> status = nullptr, std::shared_ptr<bool> active = nullptr);	// generate the SQL and request items. 
 	
+	std::shared_ptr<TransferStatus> getStatus() { return m_status; }
+
 	bool getInventory();	
 	bool getInventory_old(); // Remove once testing confirmed. ---------------------------------------------------------------------------------------------!!
 
@@ -74,8 +88,12 @@ public:
 	bool updateMinMaxBatch(int batch = 100); // update the minmax for all items, in pre-grouped sets. This may not be at all valid. 
 	bool updateMinMaxInventory(const std::string& listID, std::string& editSequence, int reorderPoint = -1, bool max = false);
 	bool updateMinMaxInventory(const std::vector<std::string>& listID, std::vector<std::string>& editSequence, std::vector<int> newValue, bool max = false); // max is assumed for ALL items.
+	bool updateInventoryPartnumbers(int limit = 100, std::string type = "ItemInventoryMod"); // limited update function for all parts. Just a one-off.
+	bool updatePartsBatch(const std::vector<std::string>& listID, std::vector<std::string>& editSequence, std::vector<std::string> newValue, std::string requestType); // limited update function continuance.
 
 	bool timeReset(SQLTable table, int Y = 1970, int M = 1, int D = 1, int H = 12, int m = 0, int S = 0);
 	bool timeReset(SQLTable table, std::string datetime = "1970-01-01 12:00:00");
+
+	bool fullsync();
 };
 
